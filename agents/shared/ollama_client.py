@@ -4,8 +4,8 @@ import json
 # The URL where Ollama is running locally
 OLLAMA_BASE_URL = "http://localhost:11434"
 
-# llama3.2 model
-MODEL_NAME = "llama3.2"
+# we used llama3.2:1b model instead of llama3.2 model because of RAM insufficiency
+MODEL_NAME = "llama3.2:1b"
 
 
 def ask_ollama(prompt: str, system_prompt: str = None) -> str:
