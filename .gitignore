@@ -1,0 +1,30 @@
+# ── Node.js ───────────────────────────────────────
+# The node_modules folder contains thousands of library files
+# — never commit these, they can be reinstalled with npm install
+node_modules/
+
+# Environment files contain secrets (passwords, API keys)
+# — NEVER commit these
+.env
+*.env
+
+# ── Python ────────────────────────────────────────
+# Virtual environment folder
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.egg-info/
+
+# ── Uploads ───────────────────────────────────────
+# Uploaded contract files are temporary : don't track them
+server/uploads/*
+# But keep the folder itself (Git ignores empty folders)
+!server/uploads/.gitkeep
+
+# ── OS files ──────────────────────────────────────
+Thumbs.db          # Windows thumbnail cache
+
+# ── Editor ────────────────────────────────────────
+.vscode/settings.json
