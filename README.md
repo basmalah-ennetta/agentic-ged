@@ -2,7 +2,7 @@
 
 > **Type:** Proof of Concept (PoC)
 > **Stack:** MERN + Python Microservices + Local AI (Ollama)
-> **Author:** Basmo
+> **Author:** Bass
 > **Status:** PoC — Functional End-to-End
 
 ---
