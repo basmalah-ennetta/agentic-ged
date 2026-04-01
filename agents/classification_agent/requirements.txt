@@ -1,0 +1,11 @@
+# FastAPI web framework
+fastapi==0.111.0
+
+# Uvicorn server
+uvicorn==0.29.0
+
+# Requests lets Python make HTTP calls to Ollama
+requests==2.31.0
+
+# python-multipart for receiving file uploads
+python-multipart==0.0.9
