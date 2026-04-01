@@ -1,12 +1,15 @@
 const Contract = require('../models/contractModel');
 const path = require('path');
-const fs = require('fs');           // built-in Node.js file system module
-const FormData = require('form-data'); // for sending files via HTTP
+const fs = require('fs');
+const FormData = require('form-data');
 const { callAgent } = require('../utils/agentCaller');
 
-// ── UPLOAD CONTRACT ────────────────────────────────────────────────────────
+// ── FULL PIPELINE ORCHESTRATOR ─────────────────────────────────────────────
 const uploadContract = async (req, res) => {
+  let contractId = null;
+
   try {
+    // ── STEP 1: Validate uploaded file ──────────────────────────────
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -17,7 +20,7 @@ const uploadContract = async (req, res) => {
     const extension = path.extname(req.file.originalname).toLowerCase();
     const fileType = extension === '.pdf' ? 'pdf' : 'image';
 
-    // ── STEP 1: Save contract record to MongoDB ──────────────────────
+    // ── STEP 2: Save initial record to MongoDB ───────────────────────
     const newContract = await Contract.create({
       originalFileName: req.file.originalname,
       filePath: req.file.path,
@@ -25,76 +28,142 @@ const uploadContract = async (req, res) => {
       status: 'uploaded',
     });
 
-    console.log(`\n[Orchestrator] Contract saved: ${newContract._id}`);
+    // Save contract ID so error handler can update it if needed
+    contractId = newContract._id;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`[Orchestrator] New contract: ${contractId}`);
+    console.log(`[Orchestrator] File: ${req.file.originalname}`);
+    console.log(`${'='.repeat(50)}`);
 
-    // ── STEP 2: Send file to OCR Agent ───────────────────────────────
-    // Update status to show OCR is in progress
-    await Contract.findByIdAndUpdate(newContract._id, {
-      status: 'ocr_processing'
-    });
+    // ── STEP 3: OCR Agent ────────────────────────────────────────────
+    console.log(`\n[Orchestrator] STEP 1/4: Sending to OCR agent...`);
+    await Contract.findByIdAndUpdate(contractId, { status: 'ocr_processing' });
 
-    console.log(`[Orchestrator] Sending file to OCR agent...`);
-
-    // We use FormData to send the file as multipart/form-data
-    // (the same format a browser uses when submitting a file upload form)
+    // Build FormData to send the file to the OCR agent
     const formData = new FormData();
-
-    // fs.createReadStream() reads the file from disk as a stream
-    // This is memory-efficient for large files
     formData.append('file', fs.createReadStream(req.file.path), {
       filename: req.file.originalname,
       contentType: req.file.mimetype,
     });
 
-    // Call the OCR agent
     const ocrResult = await callAgent(
       `${process.env.OCR_AGENT_URL}/process`,
       formData,
+      { headers: formData.getHeaders() }
+    );
+
+    if (!ocrResult.success) {
+      throw new Error('OCR agent returned failure');
+    }
+
+    const extractedText = ocrResult.extracted_text;
+    console.log(`[Orchestrator] OCR done. Characters: ${extractedText.length}`);
+
+    await Contract.findByIdAndUpdate(contractId, {
+      status: 'ocr_done',
+      extractedText: extractedText,
+    });
+
+    // ── STEP 4: Classification Agent ─────────────────────────────────
+    console.log(`\n[Orchestrator] STEP 2/4: Sending to classification agent...`);
+    await Contract.findByIdAndUpdate(contractId, { status: 'classifying' });
+
+    const classificationResult = await callAgent(
+      `${process.env.CLASSIFICATION_AGENT_URL}/process`,
       {
-        // FormData sets its own Content-Type header with boundary info
-        // We must pass these headers through to axios
-        headers: formData.getHeaders()
+        text: extractedText,
+        contract_id: contractId.toString(),
       }
     );
 
-    console.log(`[Orchestrator] OCR complete. `
-      + `Characters extracted: ${ocrResult.character_count}`);
+    const documentType = classificationResult.document_type;
+    console.log(`[Orchestrator] Classification done: ${documentType}`);
 
-    // ── STEP 3: Update MongoDB with extracted text ───────────────────
-    const updatedContract = await Contract.findByIdAndUpdate(
-      newContract._id,
+    await Contract.findByIdAndUpdate(contractId, {
+      status: 'classified',
+      documentType: documentType,
+    });
+
+    // ── STEP 5: Extraction Agent ──────────────────────────────────────
+    console.log(`\n[Orchestrator] STEP 3/4: Sending to extraction agent...`);
+    await Contract.findByIdAndUpdate(contractId, { status: 'extracting' });
+
+    const extractionResult = await callAgent(
+      `${process.env.EXTRACTION_AGENT_URL}/process`,
       {
-        status: 'ocr_done',
-        extractedText: ocrResult.extracted_text,
+        text: extractedText,
+        contract_id: contractId.toString(),
+        document_type: documentType,
+      }
+    );
+
+    const extractedInfo = extractionResult.extracted_info;
+    console.log(`[Orchestrator] Extraction done:`, extractedInfo);
+
+    await Contract.findByIdAndUpdate(contractId, {
+      status: 'extracted',
+      extractedInfo: {
+        employeeName: extractedInfo.employeeName || '',
+        salary: extractedInfo.salary || '',
+        startDate: extractedInfo.startDate || '',
+        endDate: extractedInfo.endDate || '',
+        jobTitle: extractedInfo.jobTitle || '',
+        companyName: extractedInfo.companyName || '',
+      },
+    });
+
+    // ── STEP 6: Summarization Agent ───────────────────────────────────
+    console.log(`\n[Orchestrator] STEP 4/4: Sending to summarization agent...`);
+    await Contract.findByIdAndUpdate(contractId, { status: 'summarizing' });
+
+    const summarizationResult = await callAgent(
+      `${process.env.SUMMARIZATION_AGENT_URL}/process`,
+      {
+        text: extractedText,
+        contract_id: contractId.toString(),
+        document_type: documentType,
+        extracted_info: extractedInfo,
+      }
+    );
+
+    const summary = summarizationResult.summary;
+    console.log(`[Orchestrator] Summarization done. (${summary.length} chars)`);
+
+    // ── STEP 7: Mark as completed ─────────────────────────────────────
+    const completedContract = await Contract.findByIdAndUpdate(
+      contractId,
+      {
+        status: 'completed',
+        summary: summary,
       },
       { new: true }
     );
 
-    // ── STEP 4: Return success response ─────────────────────────────
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`[Orchestrator] Pipeline COMPLETE for ${contractId}`);
+    console.log(`${'='.repeat(50)}\n`);
+
+    // ── STEP 8: Return full result ────────────────────────────────────
     return res.status(201).json({
       success: true,
-      message: 'Contract uploaded and OCR completed successfully',
-      data: updatedContract,
-      ocr: {
-        character_count: ocrResult.character_count,
-        preview: ocrResult.extracted_text.substring(0, 200) + '...'
-      }
+      message: 'Contract processed successfully through all agents',
+      data: completedContract,
     });
 
   } catch (error) {
-    console.error('[Orchestrator] Error:', error.message);
+    console.error(`\n[Orchestrator] PIPELINE ERROR: ${error.message}`);
 
-    // If we have a contract ID, mark it as failed in MongoDB
-    if (req.contractId) {
-      await Contract.findByIdAndUpdate(req.contractId, {
+    // Mark the contract as failed in MongoDB
+    if (contractId) {
+      await Contract.findByIdAndUpdate(contractId, {
         status: 'failed',
-        errorMessage: error.message
+        errorMessage: error.message,
       });
     }
 
     return res.status(500).json({
       success: false,
-      message: 'Error processing contract',
+      message: 'Pipeline failed during processing',
       error: error.message,
     });
   }
