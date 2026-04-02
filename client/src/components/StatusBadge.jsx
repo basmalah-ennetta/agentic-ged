@@ -19,7 +19,6 @@ const statusConfig = {
 };
 
 const StatusBadge = ({ status }) => {
-  // Look up the config for this status, or use a default
   const config = statusConfig[status] || {
     label: status,
     bg: '#f5f5f5',

@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom';
 
 const Navbar = () => {
   // useLocation tells us the current URL path
-  // We use it to highlight the active navigation link
   const location = useLocation();
 
   const linkStyle = (path) => ({
@@ -39,7 +38,7 @@ const Navbar = () => {
           fontSize: '16px',
           letterSpacing: '0.3px',
         }}>
-          HR Contract Pipeline
+          Agentic HR Contract Processing
         </span>
       </div>
 

@@ -6,7 +6,7 @@ import { uploadContract } from '../api';
 const UploadPage = () => {
   const navigate = useNavigate();
 
-  // State variables — these control what the UI shows
+  // State variables to control what the UI shows
   const [file, setFile] = useState(null);         // the selected file
   const [uploading, setUploading] = useState(false); // is upload in progress?
   const [progress, setProgress] = useState(0);    // upload progress 0-100
@@ -54,7 +54,7 @@ const UploadPage = () => {
     setProgress(0);
 
     // Show pipeline stage messages to keep user informed
-    // The AI pipeline takes several minutes — we update the message
+    // The AI pipeline takes several minutes so we update the message
     const stages = [
       { delay: 0,     msg: '📤 Uploading file...' },
       { delay: 3000,  msg: '🔍 OCR agent reading text...' },
@@ -70,7 +70,7 @@ const UploadPage = () => {
     );
 
     try {
-      // Call the API — this triggers the full pipeline
+      // Call the API to trigger the full pipeline
       const result = await uploadContract(file, (pct) => {
         setProgress(pct);
       });
