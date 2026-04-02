@@ -494,11 +494,10 @@ The project was built in 8 sequential phases:
 
 ### Not Yet Implemented
 
-- **GitHub repository** — project has not been pushed to a remote GitHub repository
 - **Authentication & Authorization** — no login system; any user can upload and validate contracts
 - **Real-time status updates** — the frontend does not auto-refresh during processing (user must wait for the full pipeline to complete before seeing results); no WebSocket or polling implementation
 - **File format support** — `.doc` and `.docx` Word documents are not supported; only PDF and images
-- **Multi-language OCR** — Tesseract is configured for English only (`lang='eng'`); Arabic, French, and other languages not supported
+- **Multi-language OCR** — Tesseract is configured for English & French only (`lang='eng,fra'`); Arabic and other languages not supported
 - **Agent health check before pipeline** — the orchestrator does not verify that all agents are running before starting; if one agent is down mid-pipeline, the contract is marked as `failed`
 - **File deletion** — uploaded files in `server/uploads/` are never cleaned up
 - **Pagination** — the contracts list fetches all records with no pagination
@@ -540,7 +539,7 @@ The project was built in 8 sequential phases:
 - **Clause extraction** — identify and tag specific legal clauses (termination, confidentiality, non-compete)
 - **Anomaly detection** — flag contracts with unusual salary ranges or missing mandatory fields
 - **Version control for contracts** — track amendments and changes to the same contract over time
-- **Integration** — connect to HRIS systems (e.g., Workday, BambooHR) via webhooks
+- **Integration** — connect to Elise GED system
 
 ---
 
