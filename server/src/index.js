@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { verifyTools } = require('./langchain/orchestrator');
+const { initMcpServer } = require('./mcp/mcpServer');
 
 // Import Libraries
 const express = require('express');
@@ -21,6 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 // ── ROUTES ─────────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
 
+// start MCP server after Express is listening
+initMcpServer(app);
 
 // ── HEALTH CHECK ROUTE ─────────────────────────────────────────────────────
 // check if the server is running
@@ -66,6 +69,7 @@ mongoose
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
+
     });
   })
   .catch((error) => {
