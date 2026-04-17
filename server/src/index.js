@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { verifyTools } = require('./langchain/orchestrator');
 
 // Import Libraries
 const express = require('express');
@@ -55,6 +56,10 @@ mongoose
   .then(() => {
     // MongoDB connected — now start the HTTP server
     console.log('Connected to MongoDB');
+
+    // verify LangChain tools loaded correctly
+    verifyTools();
+
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
