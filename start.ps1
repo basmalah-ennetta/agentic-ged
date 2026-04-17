@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════
-# HR Contract Pipeline - One-Click Startup Script
+# POC: HR Contract Pipeline - One-Click Startup Script
 # Run this file to start ALL services at once
 # ══════════════════════════════════════════════════════════
 
