@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { verifyTools } = require('./langchain/orchestrator');
 
 // Import Libraries
 const express = require('express');
@@ -7,6 +8,7 @@ const mongoose = require('mongoose');
 
 // Import routes
 const contractRoutes = require('./routes/contractRoutes');
+
 
 const app = express();
 
@@ -19,6 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 // ── ROUTES ─────────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
 
+
 // ── HEALTH CHECK ROUTE ─────────────────────────────────────────────────────
 // check if the server is running
 app.get('/health', (req, res) => {
@@ -28,6 +31,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
 
 // If no route matched, return a 404
 app.use((req, res) => {
@@ -55,6 +59,10 @@ mongoose
   .then(() => {
     // MongoDB connected — now start the HTTP server
     console.log('Connected to MongoDB');
+
+    // verify LangChain tools loaded correctly
+    verifyTools();
+
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
