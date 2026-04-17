@@ -14,8 +14,10 @@
 //   - Scattered MongoDB status updates
 //   - Pipeline error handling (LangChain handles this now)
 
+const mongoose = require('mongoose');
 const path = require('path');
 const Contract = require('../models/contractModel');
+const Document = require('../models/documentModel');
 const { lcUploadContract } = require('./langchainController');
 
 // ── UPLOAD CONTRACT ────────────────────────────────────────────────────────
@@ -28,38 +30,56 @@ const uploadContract = async (req, res, next) => {
 // ── GET ALL CONTRACTS ──────────────────────────────────────────────────────
 const getAllContracts = async (req, res) => {
   try {
-    const contracts = await Contract.find({}).sort({ createdAt: -1 });
+    // Fetch from both collections and merge, newest first
+    const [documents, contracts] = await Promise.all([
+      Document.find({}).sort({ createdAt: -1 }),
+      Contract.find({}).sort({ createdAt: -1 }),
+    ]);
+
+    // Merge and re-sort by createdAt
+    const all = [...documents, ...contracts].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
     return res.status(200).json({
       success: true,
-      count: contracts.length,
-      data: contracts,
+      count: all.length,
+      data: all,
     });
   } catch (error) {
     console.error('Error in getAllContracts:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Server error while fetching contracts',
+      message: 'Server error while fetching documents',
       error: error.message,
     });
   }
 };
 
-// ── GET SINGLE CONTRACT ────────────────────────────────────────────────────
+//Get contract by ID
 const getContractById = async (req, res) => {
   try {
-    const contract = await Contract.findById(req.params.id);
-    if (!contract) {
+    // Check new Document model first, fall back to legacy Contract model
+    const document =
+      (await Document.findById(req.params.id)) ||
+      (await Contract.findById(req.params.id));
+
+    if (!document) {
       return res.status(404).json({
         success: false,
-        message: 'Contract not found',
+        message: 'Document not found',
       });
     }
-    return res.status(200).json({ success: true, data: contract });
+
+    return res.status(200).json({
+      success: true,
+      data: document,
+    });
   } catch (error) {
     console.error('Error in getContractById:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Server error while fetching contract',
+      message: 'Server error while fetching document',
       error: error.message,
     });
   }
@@ -72,6 +92,13 @@ const validateContract = async (req, res) => {
   try {
     const { validationStatus, validationNotes } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid document ID: "${req.params.id}"`,
+      });
+    }
+
     if (!['approved', 'rejected'].includes(validationStatus)) {
       return res.status(400).json({
         success: false,
@@ -79,32 +106,40 @@ const validateContract = async (req, res) => {
       });
     }
 
-    const updatedContract = await Contract.findByIdAndUpdate(
+    // Try Document model first (Phase 5+ records)
+    let updatedDocument = await Document.findByIdAndUpdate(
       req.params.id,
-      {
-        validationStatus,
-        validationNotes: validationNotes || '',
-      },
-      { new: true }
+      { validationStatus, validationNotes: validationNotes || '' },
+      { returnDocument: 'after' }
     );
 
-    if (!updatedContract) {
+    // Fall back to Contract model (legacy records)
+    if (!updatedDocument) {
+      updatedDocument = await Contract.findByIdAndUpdate(
+        req.params.id,
+        { validationStatus, validationNotes: validationNotes || '' },
+        { returnDocument: 'after' }
+      );
+    }
+
+    if (!updatedDocument) {
       return res.status(404).json({
         success: false,
-        message: 'Contract not found',
+        message: 'Document not found',
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: `Contract ${validationStatus} successfully`,
-      data: updatedContract,
+      message: `Document ${validationStatus} successfully`,
+      data: updatedDocument,
     });
+
   } catch (error) {
     console.error('Error in validateContract:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Server error while validating contract',
+      message: 'Server error while validating document',
       error: error.message,
     });
   }

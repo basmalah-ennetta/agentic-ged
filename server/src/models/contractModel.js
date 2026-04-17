@@ -83,6 +83,16 @@ const contractSchema = new mongoose.Schema(
       default: '',
     },
 
+    validationWarnings: {
+      type: [String],  // array of warning strings
+      default: [],
+    },
+
+    validationPassed: {
+      type: Boolean,
+      default: null,   // null = not yet validated
+    },
+
     // Error messages if something went wrong during processing
     errorMessage: {
       type: String,

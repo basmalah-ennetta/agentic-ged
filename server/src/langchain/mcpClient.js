@@ -27,6 +27,9 @@ function getMcpClient() {
           // SSE transport — connects to our Express-mounted MCP server
           transport: 'sse',
           url: `http://localhost:${process.env.PORT || 5000}/mcp/sse`,
+
+          // Ollama on a local machine can be slow, especially for summarization
+          timeout: 300000, // 5 minutes in milliseconds
         },
       },
     });

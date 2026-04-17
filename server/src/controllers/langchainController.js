@@ -6,7 +6,8 @@
 // For now it runs on a separate test endpoint: POST /api/lc/upload
 
 const path = require('path');
-const Contract = require('../models/contractModel');
+const Document = require('../models/documentModel');
+const Contract = require('../models/contractModel'); // keep for legacy records
 const { runContractPipeline } = require('../langchain/orchestrator');
 
 /**
@@ -32,14 +33,15 @@ const lcUploadContract = async (req, res) => {
 
     // ── Step 2: Save the initial contract record to MongoDB ─────────────
     // This is still done in Node.js — LangChain doesn't handle HTTP or Multer
-    const newContract = await Contract.create({
+    const newDocument = await Document.create({
       originalFileName: req.file.originalname,
-      filePath: req.file.path,
-      fileType: fileType,
-      status: 'uploaded',
+      filePath:         req.file.path,
+      fileType:         fileType,
+      status:           'uploaded',
     });
 
-    contractId = newContract._id.toString();
+    contractId = newDocument._id.toString();
+
 
     console.log(`[LC Controller] Contract created: ${contractId}`);
     console.log(`[LC Controller] Handing off to LangChain pipeline...`);
@@ -56,14 +58,16 @@ const lcUploadContract = async (req, res) => {
 
     // ── Step 4: Fetch the final saved record from MongoDB ───────────────
     // The pipeline already saved everything — we just retrieve it
-    const completedContract = await Contract.findById(contractId);
+    const completedDocument =
+      await Document.findById(contractId) ||
+      await Contract.findById(contractId);
 
     // ── Step 5: Return the result ───────────────────────────────────────
     return res.status(201).json({
       success: true,
       message: 'Contract processed successfully via LangChain pipeline',
       orchestrator: 'langchain', // useful for comparing with original
-      data: completedContract,
+      data: completedDocument,
       pipeline_summary: {
         character_count: finalState.characterCount,
         document_type: finalState.documentType,

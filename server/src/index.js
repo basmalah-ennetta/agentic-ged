@@ -1,32 +1,30 @@
 require('dotenv').config();
-const { verifyTools } = require('./langchain/orchestrator');
-const { initMcpServer } = require('./mcp/mcpServer');
 
-// Import Libraries
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 
-// Import routes
-const contractRoutes = require('./routes/contractRoutes');
+const { verifyTools } = require('./langchain/orchestrator');
+const { initMcpServer } = require('./mcp/mcpServer');
 
+const contractRoutes = require('./routes/contractRoutes');
 
 const app = express();
 
+// ── MIDDLEWARE ─────────────────────────────────────────────────────────────
 app.use(cors());
-
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
 
-// ── ROUTES ─────────────────────────────────────────────────────────────────
+// ── API ROUTES ─────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
 
-// start MCP server after Express is listening
+// ── MCP ROUTES ─────────────────────────────────────────────────────────────
+// Must be registered before the 404 handler
+// initMcpServer registers GET /mcp/sse and POST /mcp/messages
 initMcpServer(app);
 
-// ── HEALTH CHECK ROUTE ─────────────────────────────────────────────────────
-// check if the server is running
+// ── UTILITY ROUTES ─────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -35,8 +33,24 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/mcp/tools', async (req, res) => {
+  try {
+    const { getMcpTools } = require('./langchain/mcpClient');
+    const tools = await getMcpTools();
+    res.status(200).json({
+      success: true,
+      count: tools.length,
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
-// If no route matched, return a 404
+// ── 404 HANDLER — always last real handler ─────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -44,7 +58,7 @@ app.use((req, res) => {
   });
 });
 
-// If an error occurs, log it and return a 500
+// ── ERROR HANDLER ──────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message);
   res.status(500).json({
@@ -60,19 +74,17 @@ const MONGO_URI = process.env.MONGO_URI;
 mongoose
   .connect(MONGO_URI)
   .then(() => {
-    // MongoDB connected — now start the HTTP server
-    console.log('Connected to MongoDB');
-
-    // verify LangChain tools loaded correctly
+    console.log('✅ Connected to MongoDB');
     verifyTools();
 
     app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
-
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`   Health  → http://localhost:${PORT}/health`);
+      console.log(`   Tools   → http://localhost:${PORT}/mcp/tools`);
+      console.log(`   MCP SSE → http://localhost:${PORT}/mcp/sse`);
     });
   })
   .catch((error) => {
-    console.error('MongoDB connection failed:', error.message);
+    console.error('❌ MongoDB connection failed:', error.message);
     process.exit(1);
   });

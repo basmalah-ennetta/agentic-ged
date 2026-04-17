@@ -1,41 +1,50 @@
 // storageMcpTool.js
-// Registers MongoDB contract updates as an MCP tool.
-// This is the only tool that touches the database directly.
-// All agents that need to persist data call this tool —
-// they never touch MongoDB themselves.
+// Phase 5: Handles both legacy extractedInfo and new extractedFields.
 
-const { z } = require('zod');
-const Contract = require('../../models/contractModel');
+const { z }        = require('zod');
+const Document     = require('../../models/documentModel');
+const Contract     = require('../../models/contractModel');
 
 const storageMcpTool = {
   name: 'storage',
 
   description:
-    'Updates a contract record in MongoDB. ' +
-    'Call this after each processing step to persist results ' +
-    'and advance the pipeline status.',
+    'Updates a document record in MongoDB. ' +
+    'Handles both new Document model and legacy Contract model.',
 
   schema: {
-    contractId: z.string().describe('MongoDB _id of the contract'),
+    contractId: z.string().describe('MongoDB _id of the document'),
     updates: z
       .string()
-      .describe('JSON string of fields to update e.g. {"status":"ocr_done"}'),
+      .describe('JSON string of fields to update'),
   },
 
   handler: async ({ contractId, updates }) => {
     const updateObject = JSON.parse(updates);
 
-    const updated = await Contract.findByIdAndUpdate(
+    // Try the new Document model first, fall back to legacy Contract model
+    // This ensures backward compatibility with existing records
+    let updated = await Document.findByIdAndUpdate(
       contractId,
       updateObject,
       { new: true }
     );
 
     if (!updated) {
-      throw new Error(`Contract not found: ${contractId}`);
+      updated = await Contract.findByIdAndUpdate(
+        contractId,
+        updateObject,
+        { new: true }
+      );
     }
 
-    console.log(`[MCP:storage] Updated ${contractId}:`, Object.keys(updateObject));
+    if (!updated) {
+      throw new Error(`Document not found: ${contractId}`);
+    }
+
+    console.log(
+      `[MCP:storage] Updated ${contractId}: [${Object.keys(updateObject).join(', ')}]`
+    );
 
     return {
       success: true,
