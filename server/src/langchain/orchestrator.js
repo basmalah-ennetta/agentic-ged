@@ -1,43 +1,83 @@
 // orchestrator.js
-// Phase 5: Dynamic agent orchestrator with document-type routing.
+// Phase 2: Two modes — MCP client mode (new) and direct tool mode (fallback).
 //
-// Pipeline flow:
-//   1. stepOCR       — always runs, extracts text
-//   2. stepClassify  — always runs, identifies document type
-//   3. router        — selects the right chain based on document type
-//   4. selected chain — runs extraction + summarization for that type
+// USE_MCP_CLIENT=true  → tools come from MCP server (new path)
+// USE_MCP_CLIENT=false → tools come from direct imports (old path)
 //
-// Adding a new document type:
-//   1. Create a chain in langchain/chains/
-//   2. Add it to router.js CHAIN_MAP
-//   Done — orchestrator does not need to change.
+// Both produce identical results. This lets us validate MCP tools
+// work correctly before removing the direct imports in Phase 3.
 
+const { getMcpTools, getToolByName } = require('./mcpClient');
+const { routeToChain, getChainName, getSupportedTypes } = require('./router');
+
+// Direct tool imports — kept as fallback during Phase 2
 const { ocrTool } = require('../tools/ocrTool');
 const { classifyTool } = require('../tools/classifyTool');
 const { mongoUpdateTool } = require('../tools/mongoTool');
-const { routeToChain, getSupportedTypes } = require('./router');
 
-// ── FIXED STEPS (always run regardless of document type) ───────────────────
+// ── TOOL RESOLUTION ────────────────────────────────────────────────────────
+// Resolves the tools object from either MCP or direct imports.
+// Returns a consistent { ocr, classify, extract, summarize, storage } shape
+// regardless of which source is used.
 
-async function stepOCR(state) {
+async function resolveTools() {
+  const useMcp = process.env.USE_MCP_CLIENT === 'true';
+
+  if (useMcp) {
+    console.log('[Orchestrator] Using MCP client tools');
+
+    const tools = await getMcpTools();
+
+    return {
+      ocr: getToolByName('ocr', tools),
+      classify: getToolByName('classify', tools),
+      extract: getToolByName('extract', tools),
+      summarize: getToolByName('summarize', tools),
+      storage: getToolByName('storage', tools),
+      source: 'mcp',
+    };
+  } else {
+    console.log('[Orchestrator] Using direct LangChain tools (legacy)');
+
+    // Direct imports — Phase 1 tools
+    const { extractTool } = require('../tools/extractTool');
+    const { summarizeTool } = require('../tools/summarizeTool');
+
+    return {
+      ocr: ocrTool,
+      classify: classifyTool,
+      extract: extractTool,
+      summarize: summarizeTool,
+      storage: mongoUpdateTool,
+      source: 'direct',
+    };
+  }
+}
+
+// ── PIPELINE STEPS ─────────────────────────────────────────────────────────
+
+async function stepOCR(state, tools) {
   console.log('[Agent] Step 1/3: Running OCR...');
 
-  await mongoUpdateTool.invoke({
+  await tools.storage.invoke({
     contractId: state.contractId,
     updates: JSON.stringify({ status: 'ocr_processing' }),
   });
 
-  const resultStr = await ocrTool.invoke({
+  const resultRaw = await tools.ocr.invoke({
     filePath: state.filePath,
     fileName: state.fileName,
     mimeType: state.mimeType,
   });
 
-  const result = JSON.parse(resultStr);
+  // Handle both direct tool response and MCP string response
+  const result = typeof resultRaw === 'string'
+    ? JSON.parse(resultRaw)
+    : resultRaw;
 
   console.log(`[Agent] OCR complete. Characters: ${result.character_count}`);
 
-  await mongoUpdateTool.invoke({
+  await tools.storage.invoke({
     contractId: state.contractId,
     updates: JSON.stringify({
       status: 'ocr_done',
@@ -52,24 +92,26 @@ async function stepOCR(state) {
   };
 }
 
-async function stepClassify(state) {
+async function stepClassify(state, tools) {
   console.log('[Agent] Step 2/3: Classifying document...');
 
-  await mongoUpdateTool.invoke({
+  await tools.storage.invoke({
     contractId: state.contractId,
     updates: JSON.stringify({ status: 'classifying' }),
   });
 
-  const resultStr = await classifyTool.invoke({
+  const resultRaw = await tools.classify.invoke({
     text: state.extractedText,
     contractId: state.contractId,
   });
 
-  const result = JSON.parse(resultStr);
+  const result = typeof resultRaw === 'string'
+    ? JSON.parse(resultRaw)
+    : resultRaw;
 
   console.log(`[Agent] Classification: ${result.document_type} (${result.confidence})`);
 
-  await mongoUpdateTool.invoke({
+  await tools.storage.invoke({
     contractId: state.contractId,
     updates: JSON.stringify({
       status: 'classified',
@@ -84,83 +126,50 @@ async function stepClassify(state) {
   };
 }
 
-// ── DYNAMIC STEP (document-type specific) ──────────────────────────────────
+// ── MAIN PIPELINE ──────────────────────────────────────────────────────────
 
-async function stepRouteAndProcess(state) {
-  console.log(`[Agent] Step 3/3: Routing to chain for "${state.documentType}"...`);
-
-  // Get the right chain for this document type
-  const selectedChain = routeToChain(state.documentType);
-
-  // Run that chain — it handles extraction + summarization
-  const finalState = await selectedChain.invoke(state);
-
-  return finalState;
-}
-
-// ── MAIN PIPELINE FUNCTION ─────────────────────────────────────────────────
-
-/**
- * runContractPipeline(initialState)
- *
- * Runs the full document processing pipeline with dynamic routing.
- *
- * @param {object} initialState - Must contain:
- *   - contractId {string}
- *   - filePath   {string}
- *   - fileName   {string}
- *   - mimeType   {string}
- *
- * @returns {object} Final state with all results
- */
 async function runContractPipeline(initialState) {
   console.log('\n' + '='.repeat(54));
-  console.log('[LangChain Agent] Starting document pipeline');
+  console.log('[LangChain Agent] Starting pipeline');
   console.log(`[LangChain Agent] Contract: ${initialState.contractId}`);
   console.log(`[LangChain Agent] File:     ${initialState.fileName}`);
   console.log('='.repeat(54));
 
-  // Step 1 — OCR (always)
-  const stateAfterOCR = await stepOCR(initialState);
+  // Resolve tools from MCP or direct imports
+  const tools = await resolveTools();
+  console.log(`[LangChain Agent] Tool source: ${tools.source}`);
 
-  // Step 2 — Classify (always)
-  const stateAfterClassify = await stepClassify(stateAfterOCR);
+  // Step 1 — OCR
+  const stateAfterOCR = await stepOCR(initialState, tools);
 
-  // Step 3 — Route and process (dynamic)
-  const finalState = await stepRouteAndProcess(stateAfterClassify);
+  // Step 2 — Classify
+  const stateAfterClassify = await stepClassify(stateAfterOCR, tools);
+
+  // Step 3 — Route and process using the right chain
+  console.log('[Agent] Step 3/3: Routing to document chain...');
+  const chain = routeToChain(stateAfterClassify.documentType, tools);
+  const finalState = await chain.invoke(stateAfterClassify);
 
   console.log('\n' + '='.repeat(54));
   console.log('[LangChain Agent] Pipeline COMPLETE');
-  console.log(`[LangChain Agent] Type:     ${finalState.documentType}`);
-  console.log(`[LangChain Agent] Chain:    ${getChainName(finalState.documentType)}`);
+  console.log(`[LangChain Agent] Type:   ${finalState.documentType}`);
+  console.log(`[LangChain Agent] Chain:  ${getChainName(finalState.documentType)}`);
+  console.log(`[LangChain Agent] Source: ${tools.source}`);
   console.log('='.repeat(54) + '\n');
 
   return finalState;
 }
 
-// Helper — returns readable chain name for logging
-function getChainName(documentType) {
-  const map = {
-    employment_contract: 'EmploymentChain',
-    internship_agreement: 'EmploymentChain (reused)',
-    freelance_agreement: 'EmploymentChain (reused)',
-    nda: 'NDAChain',
-    amendment: 'GenericChain',
-    termination_letter: 'GenericChain',
-    other: 'GenericChain',
-  };
-  return map[documentType] || 'GenericChain (fallback)';
-}
-
-// ── STARTUP VERIFICATION ───────────────────────────────────────────────────
-
 function verifyTools() {
   const supported = getSupportedTypes();
+  const useMcp = process.env.USE_MCP_CLIENT === 'true';
+
   console.log('\n[LangChain Agent] Document routing registered:');
   supported.forEach((type) => {
     console.log(`  - ${type} → ${getChainName(type)}`);
   });
-  console.log('[LangChain Agent] Ready (Phase 5 — dynamic routing active)\n');
+  console.log(`[LangChain Agent] Tool mode: ${useMcp ? 'MCP client' : 'direct imports'}`);
+  console.log('[LangChain Agent] Ready (Phase 2 — MCP client coexistence)\n');
 }
 
 module.exports = { runContractPipeline, verifyTools };

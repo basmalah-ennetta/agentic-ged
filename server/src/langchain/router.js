@@ -1,64 +1,56 @@
 // router.js
-// The document type router — decides which chain to run
-// after classification is complete.
-//
-// This is a deterministic router (no LLM needed).
-// It reads the documentType from the pipeline state and
-// returns the appropriate chain to execute.
-//
-// To add support for a new document type:
-//   1. Create a new chain in langchain/chains/
-//   2. Add one line to the CHAIN_MAP below
-//   That's it — nothing else needs to change.
+// Phase 2: Router now creates chains using tool factories.
+// Tools are passed in from the orchestrator — the router
+// does not import any tools itself.
 
-const { employmentChain } = require('./chains/employmentChain');
-const { ndaChain } = require('./chains/ndaChain');
-const { genericChain } = require('./chains/genericChain');
+const { createEmploymentChain } = require('./chains/employmentChain');
+const { createNdaChain } = require('./chains/ndaChain');
+const { createGenericChain } = require('./chains/genericChain');
 
-// ── CHAIN MAP ──────────────────────────────────────────────────────────────
-// Maps document type strings (from classification agent) to their chains.
-// Add new document types here as the system grows.
-
-const CHAIN_MAP = {
-  employment_contract: employmentChain,
-  nda: ndaChain,
-  internship_agreement: employmentChain, // reuse employment chain — similar fields
-  freelance_agreement: employmentChain,  // reuse employment chain — similar fields
-  amendment: genericChain,
-  termination_letter: genericChain,
-  other: genericChain,
+// Maps document types to chain factory functions
+const CHAIN_FACTORIES = {
+  employment_contract: createEmploymentChain,
+  nda: createNdaChain,
+  internship_agreement: createEmploymentChain,
+  freelance_agreement: createEmploymentChain,
+  amendment: createGenericChain,
+  termination_letter: createGenericChain,
+  other: createGenericChain,
 };
 
 /**
- * routeToChain(documentType)
+ * routeToChain(documentType, tools)
+ * Creates and returns the appropriate chain for a document type.
  *
- * Returns the appropriate processing chain for a given document type.
- * Falls back to genericChain if the type is not in the map.
- *
- * @param {string} documentType - The type returned by the classification agent
- * @returns {RunnableSequence} The chain to execute
+ * @param {string} documentType - From classification agent
+ * @param {object} tools        - Tools object from orchestrator
+ * @returns {RunnableSequence}  The chain to execute
  */
-function routeToChain(documentType) {
-  const normalizedType = (documentType || 'other').toLowerCase().trim();
-  const chain = CHAIN_MAP[normalizedType];
+function routeToChain(documentType, tools) {
+  const normalized = (documentType || 'other').toLowerCase().trim();
+  const factory = CHAIN_FACTORIES[normalized] || createGenericChain;
 
-  if (chain) {
-    console.log(`[Router] Document type "${normalizedType}" → dedicated chain`);
-  } else {
-    console.log(`[Router] Document type "${normalizedType}" → generic chain (fallback)`);
-  }
+  const chainName = getChainName(normalized);
+  console.log(`[Router] "${normalized}" → ${chainName}`);
 
-  // Return the matched chain, or generic as fallback
-  return chain || genericChain;
+  return factory(tools);
 }
 
-/**
- * getSupportedTypes()
- * Returns list of document types that have dedicated chains.
- * Useful for logging and debugging.
- */
+function getChainName(documentType) {
+  const map = {
+    employment_contract: 'EmploymentChain',
+    internship_agreement: 'EmploymentChain (reused)',
+    freelance_agreement: 'EmploymentChain (reused)',
+    nda: 'NDAChain',
+    amendment: 'GenericChain',
+    termination_letter: 'GenericChain',
+    other: 'GenericChain',
+  };
+  return map[documentType] || 'GenericChain (fallback)';
+}
+
 function getSupportedTypes() {
-  return Object.keys(CHAIN_MAP);
+  return Object.keys(CHAIN_FACTORIES);
 }
 
-module.exports = { routeToChain, getSupportedTypes };
+module.exports = { routeToChain, getChainName, getSupportedTypes };
