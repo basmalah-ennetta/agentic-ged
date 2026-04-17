@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 
 // Import routes
 const contractRoutes = require('./routes/contractRoutes');
-const langchainRoutes = require('./routes/langchainRoutes');
+
 
 const app = express();
 
@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── ROUTES ─────────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
-app.use('/api/lc', langchainRoutes);
+
 
 // ── HEALTH CHECK ROUTE ─────────────────────────────────────────────────────
 // check if the server is running
@@ -32,18 +32,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Shows which orchestrator is currently active
-app.get('/orchestrator', (req, res) => {
-  const useLangChain = process.env.USE_LANGCHAIN === 'true';
-  res.status(200).json({
-    success: true,
-    orchestrator: useLangChain ? 'langchain' : 'nodejs-legacy',
-    USE_LANGCHAIN: process.env.USE_LANGCHAIN,
-    message: useLangChain
-      ? 'LangChain pipeline is active on POST /api/contracts/upload'
-      : 'Node.js legacy pipeline is active on POST /api/contracts/upload',
-  });
-});
 
 // If no route matched, return a 404
 app.use((req, res) => {

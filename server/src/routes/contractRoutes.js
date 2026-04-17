@@ -1,7 +1,10 @@
+// contractRoutes.js
+// Phase 4: Clean routes — no feature flags, no legacy references.
+// All uploads go directly through LangChain via contractController.
+
 const express = require('express');
 const router = express.Router();
 
-// Import controller functions
 const {
   uploadContract,
   getAllContracts,
@@ -9,25 +12,22 @@ const {
   validateContract,
 } = require('../controllers/contractController');
 
-// Import multer upload middleware
 const upload = require('../middleware/uploadMiddleware');
 
-const { orchestrateUpload } = require('../middleware/orchestratorMiddleware');
-
-// ── DEFINE ROUTES ──────────────────────────────────────────────────────────
-// - 'contract' is the field name the frontend must use when sending the file
-router.post('/upload', upload.single('contract'), orchestrateUpload);
+// POST /api/contracts/upload
+// Receives the file, runs the full LangChain pipeline
+router.post('/upload', upload.single('contract'), uploadContract);
 
 // GET /api/contracts
-// Returns all contracts
+// Returns all contracts sorted newest first
 router.get('/', getAllContracts);
 
 // GET /api/contracts/:id
-// Returns one contract by ID (:id is a URL parameter)
+// Returns one contract by MongoDB ID
 router.get('/:id', getContractById);
 
 // PUT /api/contracts/:id/validate
-// HR person approves or rejects a contract
+// HR approves or rejects a contract
 router.put('/:id/validate', validateContract);
 
 module.exports = router;
