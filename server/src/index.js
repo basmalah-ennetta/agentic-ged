@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 
 // Import routes
 const contractRoutes = require('./routes/contractRoutes');
+const langchainRoutes = require('./routes/langchainRoutes');
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── ROUTES ─────────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
+app.use('/api/lc', langchainRoutes);
 
 // ── HEALTH CHECK ROUTE ─────────────────────────────────────────────────────
 // check if the server is running
