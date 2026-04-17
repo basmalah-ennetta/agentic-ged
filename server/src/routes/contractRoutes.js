@@ -12,9 +12,11 @@ const {
 // Import multer upload middleware
 const upload = require('../middleware/uploadMiddleware');
 
+const { orchestrateUpload } = require('../middleware/orchestratorMiddleware');
+
 // ── DEFINE ROUTES ──────────────────────────────────────────────────────────
 // - 'contract' is the field name the frontend must use when sending the file
-router.post('/upload', upload.single('contract'), uploadContract);
+router.post('/upload', upload.single('contract'), orchestrateUpload);
 
 // GET /api/contracts
 // Returns all contracts

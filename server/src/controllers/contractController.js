@@ -5,7 +5,7 @@ const FormData = require('form-data');
 const { callAgent } = require('../utils/agentCaller');
 
 // ── FULL PIPELINE ORCHESTRATOR ─────────────────────────────────────────────
-const uploadContract = async (req, res) => {
+const uploadContractLegacy = async (req, res) => {
   let contractId = null;
 
   try {
@@ -244,7 +244,8 @@ const validateContract = async (req, res) => {
 };
 
 module.exports = {
-  uploadContract,
+  uploadContractLegacy,   // renamed — now used only as fallback
+  uploadContract: uploadContractLegacy, // alias so nothing else breaks
   getAllContracts,
   getContractById,
   validateContract,
