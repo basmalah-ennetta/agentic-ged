@@ -1,10 +1,3 @@
-// langchainController.js
-// This is a PARALLEL controller that runs the LangChain pipeline.
-// The original contractController.js is completely untouched.
-//
-// In Phase 3 we will switch the route to use this controller.
-// For now it runs on a separate test endpoint: POST /api/lc/upload
-
 const path = require('path');
 const Document = require('../models/documentModel');
 const Contract = require('../models/contractModel'); // keep for legacy records
@@ -47,8 +40,6 @@ const lcUploadContract = async (req, res) => {
     console.log(`[LC Controller] Handing off to LangChain pipeline...`);
 
     // ── Step 3: Hand off to LangChain pipeline ──────────────────────────
-    // This single call replaces the entire chain of manual await callAgent()
-    // calls that exist in contractController.js
     const finalState = await runContractPipeline({
       contractId,
       filePath: req.file.path,
@@ -57,7 +48,6 @@ const lcUploadContract = async (req, res) => {
     });
 
     // ── Step 4: Fetch the final saved record from MongoDB ───────────────
-    // The pipeline already saved everything — we just retrieve it
     const completedDocument =
       await Document.findById(contractId) ||
       await Contract.findById(contractId);
@@ -66,7 +56,7 @@ const lcUploadContract = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Contract processed successfully via LangChain pipeline',
-      orchestrator: 'langchain', // useful for comparing with original
+      orchestrator: 'langchain', // compare with original
       data: completedDocument,
       pipeline_summary: {
         character_count: finalState.characterCount,
@@ -100,7 +90,6 @@ const lcUploadContract = async (req, res) => {
 /**
  * lcGetStatus
  * Returns current pipeline status for a contract.
- * Useful for polling during processing.
  */
 const lcGetStatus = async (req, res) => {
   try {

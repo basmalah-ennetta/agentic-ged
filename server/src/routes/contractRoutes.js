@@ -1,5 +1,3 @@
-// contractRoutes.js
-// Phase 4: Clean routes — no feature flags, no legacy references.
 // All uploads go directly through LangChain via contractController.
 
 const express = require('express');

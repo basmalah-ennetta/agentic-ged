@@ -1,9 +1,6 @@
-// documentTypes.js
 // Single source of truth for all document type definitions.
 //
-// To add a new document type to the system:
-//   1. Add an entry here
-//   2. Nothing else needs to change
+// To add a new document type to the system: Add an entry here
 //
 // Each entry defines:
 //   label        — human-readable name shown in the UI

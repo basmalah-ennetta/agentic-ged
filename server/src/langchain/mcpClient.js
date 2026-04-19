@@ -21,7 +21,7 @@ function getMcpClient() {
   if (!mcpClient) {
     mcpClient = new MultiServerMCPClient({
       // Define which MCP servers to connect to
-      // In Phase 4+ we can add more servers here (e.g. external agents)
+      //  we can add more servers here (e.g. external agents)
       mcpServers: {
         'ged-pipeline': {
           // SSE transport — connects to our Express-mounted MCP server

@@ -1,9 +1,7 @@
-// documentModel.js
 // Generic document model — works for any document type.
 //
 // Key design decision: extractedFields is a flexible Map (key-value store)
 // instead of hardcoded fields like employeeName, salary, etc.
-// This means adding a new document type never requires a schema change.
 //
 // The old contractModel.js is kept temporarily for backward compatibility
 // with any existing MongoDB records. New records use this model.
@@ -69,7 +67,6 @@ const documentSchema = new mongoose.Schema(
     //   employment: { employeeName: 'John', salary: '$3000' }
     //   invoice:    { invoiceNumber: 'INV-001', totalAmount: '$500' }
     //   nda:        { companyName: 'Acme', duration: '2 years' }
-    // No field names are hardcoded — the extraction agent decides what to return.
     extractedFields: {
       type: Map,
       of: String,

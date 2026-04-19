@@ -20,7 +20,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/contracts', contractRoutes);
 
 // ── MCP ROUTES ─────────────────────────────────────────────────────────────
-// Must be registered before the 404 handler
 // initMcpServer registers GET /mcp/sse and POST /mcp/messages
 initMcpServer(app);
 
@@ -28,7 +27,7 @@ initMcpServer(app);
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'HR Contract Pipeline server is running',
+    message: 'The server is running',
     timestamp: new Date().toISOString(),
   });
 });
@@ -50,7 +49,7 @@ app.get('/mcp/tools', async (req, res) => {
   }
 });
 
-// ── 404 HANDLER — always last real handler ─────────────────────────────────
+// ── 404 HANDLER  ─────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,
