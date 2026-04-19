@@ -70,6 +70,15 @@ const lcUploadContract = async (req, res) => {
   } catch (error) {
     console.error('[LC Controller] Pipeline error:', error.message);
 
+
+    try {
+      const Trace = require('../models/traceModel');
+      await Trace.findOneAndUpdate(
+        { documentId: contractId },
+        { outcome: 'failed' }
+      );
+    } catch {}
+
     // Mark the contract as failed in MongoDB if we have an ID
     if (contractId) {
       await Contract.findByIdAndUpdate(contractId, {

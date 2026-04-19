@@ -1,31 +1,26 @@
-// SummaryAgent.js
-// Responsibility: Generate a human-readable summary of the document.
-// Uses all previously gathered data (text + type + fields) as context
-// to produce a richer, more accurate summary.
-//
-// This agent does NOT know:
-//   - Anything about OCR, classification, or extraction
-//   - How the extracted fields were obtained
-//   - Any business rules about document validation
+const { createTracer } = require('../langchain/traceHelper');
 
 class SummaryAgent {
   constructor(tools) {
     this.summarize = tools.summarize;
-    this.storage = tools.storage;
-    this.name = 'SummaryAgent';
+    this.storage   = tools.storage;
+    this.trace     = tools.trace;
+    this.name      = 'SummaryAgent';
   }
 
-  /**
-   * run(state)
-   * Generates and persists a document summary.
-   *
-   * @param {object} state - Must contain:
-   *   contractId, extractedText, documentType, extractedInfo
-   * @returns {object} Updated state with summary added
-   */
   async run(state) {
-    console.log(`\n[${this.name}] Generating summary`);
-    console.log(`[${this.name}] Document type: ${state.documentType}`);
+    const tracer = createTracer(
+      { trace: this.trace },
+      state.contractId,
+      this.name,
+      state.fileName
+    );
+
+    const start = Date.now();
+
+    await tracer.log('summary_started', {
+      data: { documentType: state.documentType }
+    });
 
     await this.storage.invoke({
       contractId: state.contractId,
@@ -33,26 +28,28 @@ class SummaryAgent {
     });
 
     const raw = await this.summarize.invoke({
-      text: state.extractedText,
-      contractId: state.contractId,
-      documentType: state.documentType,
-      extractedInfo: JSON.stringify(state.extractedInfo || {}),
+      text:          state.extractedText,
+      contractId:    state.contractId,
+      documentType:  state.documentType,
+      extractedInfo: JSON.stringify(state.extractedFields || {}),
     });
 
-    const result = this._parse(raw);
+    const result  = this._parse(raw);
     const summary = result.summary || result;
 
-    console.log(`[${this.name}] Summary generated (${summary.length} chars)`);
+    await tracer.log('summary_complete', {
+      tool: 'summarize',
+      data: { summaryLength: summary.length },
+      durationMs: Date.now() - start,
+    });
 
     await this.storage.invoke({
       contractId: state.contractId,
       updates: JSON.stringify({ summary }),
     });
 
-    return {
-      ...state,
-      summary,
-    };
+    console.log(`[${this.name}] Summary complete (${summary.length} chars)`);
+    return { ...state, summary };
   }
 
   _parse(raw) {

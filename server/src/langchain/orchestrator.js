@@ -18,12 +18,15 @@ async function resolveTools() {
     extract:   getToolByName('extract',   tools),
     summarize: getToolByName('summarize', tools),
     storage:   getToolByName('storage',   tools),
+    trace:     getToolByName('trace',     tools),
   };
 }
 
 // ── MAIN PIPELINE ──────────────────────────────────────────────────────────
 
 async function runContractPipeline(initialState) {
+  const pipelineStart = Date.now();
+
   console.log('\n' + '='.repeat(56));
   console.log('[Coordinator] Pipeline starting');
   console.log(`[Coordinator] Contract : ${initialState.contractId}`);
@@ -39,6 +42,20 @@ async function runContractPipeline(initialState) {
 
   // Run the full agent pipeline
   const finalState = await coordinator.run(initialState);
+
+  // Finalize the trace record
+  try {
+    const Trace = require('../models/traceModel');
+    await Trace.findOneAndUpdate(
+      { documentId: initialState.contractId },
+      {
+        outcome:        'completed',
+        totalDurationMs: Date.now() - pipelineStart,
+      }
+    );
+  } catch (e) {
+    console.error('[Orchestrator] Failed to finalize trace:', e.message);
+  }
 
   console.log('\n' + '='.repeat(56));
   console.log('[Coordinator] Pipeline COMPLETE');

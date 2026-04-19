@@ -22,6 +22,7 @@ const { classifyMcpTool } = require('./registry/classifyMcpTool');
 const { extractMcpTool } = require('./registry/extractMcpTool');
 const { summarizeMcpTool } = require('./registry/summarizeMcpTool');
 const { storageMcpTool } = require('./registry/storageMcpTool');
+const { traceMcpTool }     = require('./registry/traceMcpTool');
 
 // Collect all tools in one place
 // Adding a new tool = add one line here
@@ -31,6 +32,7 @@ const MCP_TOOLS = [
   extractMcpTool,
   summarizeMcpTool,
   storageMcpTool,
+  traceMcpTool,
 ];
 
 // Create the MCP server instance

@@ -1,6 +1,4 @@
-// StructuringAgent.js
-// Phase 5: Uses documentTypes config and flexible field storage.
-
+const { createTracer } = require('../langchain/traceHelper');
 const { getDocumentType, getLabel } = require('../config/documentTypes');
 
 class StructuringAgent {
@@ -8,17 +6,37 @@ class StructuringAgent {
     this.classify = tools.classify;
     this.extract  = tools.extract;
     this.storage  = tools.storage;
+    this.trace    = tools.trace;
     this.name     = 'StructuringAgent';
   }
 
   async run(state) {
-    console.log(`\n[${this.name}] Starting structuring`);
-    const documentType  = await this._classify(state);
-    const extractedFields = await this._extract(state, documentType);
+    const tracer = createTracer(
+      { trace: this.trace },
+      state.contractId,
+      this.name,
+      state.fileName
+    );
+
+    await tracer.log('structuring_started', {
+      data: { textLength: state.extractedText?.length }
+    });
+
+    const documentType    = await this._classify(state, tracer);
+    const extractedFields = await this._extract(state, documentType, tracer);
+
+    await tracer.log('structuring_complete', {
+      data: {
+        documentType,
+        fieldCount: Object.keys(extractedFields).length,
+      }
+    });
+
     return { ...state, documentType, extractedFields };
   }
 
-  async _classify(state) {
+  async _classify(state, tracer) {
+    const start = Date.now();
     console.log(`[${this.name}] Classifying...`);
 
     await this.storage.invoke({
@@ -26,12 +44,18 @@ class StructuringAgent {
       updates: JSON.stringify({ status: 'classifying' }),
     });
 
-    const raw    = await this.classify.invoke({
+    const raw          = await this.classify.invoke({
       text: state.extractedText,
       contractId: state.contractId,
     });
-    const result = this._parse(raw);
+    const result       = this._parse(raw);
     const documentType = result.document_type || 'other';
+
+    await tracer.log('classified', {
+      tool: 'classify',
+      data: { documentType, confidence: result.confidence },
+      durationMs: Date.now() - start,
+    });
 
     console.log(`[${this.name}] Type: ${documentType} (${result.confidence})`);
 
@@ -47,8 +71,8 @@ class StructuringAgent {
     return documentType;
   }
 
-  async _extract(state, documentType) {
-    const typeConfig = getDocumentType(documentType);
+  async _extract(state, documentType, tracer) {
+    const start = Date.now();
     console.log(`[${this.name}] Extracting fields for: ${documentType}`);
 
     await this.storage.invoke({
@@ -56,23 +80,29 @@ class StructuringAgent {
       updates: JSON.stringify({ status: 'extracting' }),
     });
 
-    const raw    = await this.extract.invoke({
+    const raw        = await this.extract.invoke({
       text: state.extractedText,
       contractId: state.contractId,
       documentType,
     });
-    const result       = this._parse(raw);
-    const rawFields    = result.extracted_info || result;
+    const result     = this._parse(raw);
+    const rawFields  = result.extracted_info || result;
 
-    // Flatten to string values only
     const extractedFields = {};
     Object.entries(rawFields).forEach(([k, v]) => {
       if (typeof v === 'string') extractedFields[k] = v;
     });
 
-    console.log(
-      `[${this.name}] Extracted ${Object.keys(extractedFields).length} fields`
-    );
+    await tracer.log('extracted', {
+      tool: 'extract',
+      data: {
+        fieldCount: Object.keys(extractedFields).length,
+        fields:     Object.keys(extractedFields),
+      },
+      durationMs: Date.now() - start,
+    });
+
+    console.log(`[${this.name}] Extracted ${Object.keys(extractedFields).length} fields`);
 
     await this.storage.invoke({
       contractId: state.contractId,
@@ -80,7 +110,6 @@ class StructuringAgent {
         status: 'extracted',
         extractedFields,
         documentTypeLabel: getLabel(documentType),
-        // Backward-compatible legacy field for existing frontend
         extractedInfo: {
           employeeName: extractedFields.employeeName || '',
           companyName:  extractedFields.companyName  || '',
