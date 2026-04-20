@@ -1,100 +1,68 @@
-// mcpClient.js
-// Wraps the LangChain MCP client.
-// Connects to our MCP server and returns tools as LangChain-compatible
-// objects — the same interface as ocrTool.js, classifyTool.js, etc.
-//
-// The key benefit: the orchestrator no longer needs to know WHERE
-// tools come from. It just receives a list of tools and calls them.
-// Whether they come from direct imports or MCP doesn't matter.
-
 const { MultiServerMCPClient } = require('@langchain/mcp-adapters');
 
-// We keep a single client instance — no need to reconnect on every request
 let mcpClient = null;
-let mcpTools = null;
+let mcpTools  = null;
+let lastFetchTime = null;
 
-/**
- * getMcpClient()
- * Returns the singleton MCP client, creating it if needed.
- */
+const CACHE_TTL_MS = process.env.NODE_ENV === 'production'
+  ? 5 * 60 * 1000
+  : 30 * 1000;
+
 function getMcpClient() {
   if (!mcpClient) {
     mcpClient = new MultiServerMCPClient({
-      // Define which MCP servers to connect to
-      //  we can add more servers here (e.g. external agents)
       mcpServers: {
         'ged-pipeline': {
-          // SSE transport — connects to our Express-mounted MCP server
           transport: 'sse',
           url: `http://localhost:${process.env.PORT || 5000}/mcp/sse`,
-
-          // Ollama on a local machine can be slow, especially for summarization
-          timeout: 300000, // 5 minutes in milliseconds
+          // Set timeout at every possible level
+          timeout:            600000,
+          sseOptions: {
+            timeout:          600000,
+            reconnectInterval: 3000,
+          },
+          requestTimeout:     600000,
         },
       },
+      // Global timeout for all servers
+      timeout: 600000,
     });
   }
   return mcpClient;
 }
 
-/**
- * getMcpTools()
- * Connects to the MCP server and returns all available tools
- * as LangChain-compatible tool objects.
- *
- * Tools are cached after the first fetch — the MCP server tool
- * list does not change at runtime so we only need to fetch once.
- *
- * @returns {Array} Array of LangChain tool objects
- */
 async function getMcpTools() {
-  if (mcpTools) {
-    return mcpTools;
-  }
+  const now = Date.now();
+  const expired = !lastFetchTime || (now - lastFetchTime) > CACHE_TTL_MS;
+
+  if (mcpTools && !expired) return mcpTools;
 
   console.log('[MCP Client] Connecting to MCP server...');
-
   const client = getMcpClient();
-
-  // getTools() fetches the tool list from the MCP server
-  // and converts each tool into a LangChain-compatible object
-  mcpTools = await client.getTools();
+  mcpTools     = await client.getTools();
+  lastFetchTime = now;
 
   console.log(`[MCP Client] Connected. ${mcpTools.length} tools available:`);
-  mcpTools.forEach((t) => console.log(`  - ${t.name}`));
+  mcpTools.forEach(t => console.log(`  - ${t.name}`));
 
   return mcpTools;
 }
 
-/**
- * getToolByName(name, tools)
- * Helper — finds a specific tool by name from the tools array.
- * Throws a clear error if the tool is not found.
- *
- * @param {string} name   - Tool name e.g. 'ocr', 'classify'
- * @param {Array}  tools  - Array returned by getMcpTools()
- * @returns {object} LangChain tool object
- */
 function getToolByName(name, tools) {
-  const tool = tools.find((t) => t.name === name);
+  const tool = tools.find(t => t.name === name);
   if (!tool) {
     throw new Error(
-      `MCP tool "${name}" not found. ` +
-      `Available: ${tools.map((t) => t.name).join(', ')}`
+      `MCP tool "${name}" not found. Available: ${tools.map(t => t.name).join(', ')}`
     );
   }
   return tool;
 }
 
-/**
- * resetMcpClient()
- * Clears the cached client and tools.
- * Useful for testing or if the MCP server restarts.
- */
 function resetMcpClient() {
-  mcpClient = null;
-  mcpTools = null;
-  console.log('[MCP Client] Cache cleared — will reconnect on next call');
+  mcpClient     = null;
+  mcpTools      = null;
+  lastFetchTime = null;
+  console.log('[MCP Client] Reset');
 }
 
 module.exports = { getMcpTools, getToolByName, resetMcpClient };

@@ -99,6 +99,16 @@ function attachToExpress(app) {
   app.get('/mcp/sse', async (req, res) => {
     console.log('[MCP Server] New client connected via SSE');
 
+    // Disable ALL timeouts on this connection
+    req.socket.setTimeout(0);
+    req.socket.setKeepAlive(true, 1000);
+    res.setTimeout(0);
+
+    res.setHeader('Connection',               'keep-alive');
+    res.setHeader('Cache-Control',            'no-cache');
+    res.setHeader('X-Accel-Buffering',        'no');
+    res.setHeader('Content-Type',             'text/event-stream');
+
     const transport = new SSEServerTransport('/mcp/messages', res);
     transports[transport.sessionId] = transport;
 

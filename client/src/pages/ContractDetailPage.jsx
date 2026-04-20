@@ -49,7 +49,15 @@ const ContractDetailPage = () => {
   if (loading) return <Spinner message="Loading contract details..." />;
   if (!contract) return <p style={{ padding: '40px', textAlign: 'center' }}>Contract not found.</p>;
 
-  const info = contract.extractedInfo || {};
+  // extractedFields is a Map in MongoDB — serialized to a plain object by Mongoose
+  const fields = contract.extractedFields || {};
+
+  // Convert camelCase or snake_case keys to readable labels
+  const toLabel = (key) =>
+    key
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^./, (c) => c.toUpperCase());
 
   // Helper to render an info row
   const InfoRow = ({ label, value }) => {
@@ -163,15 +171,12 @@ const ContractDetailPage = () => {
             📊 Extracted Information
           </h2>
 
-          <InfoRow label="Employee Name" value={info.employeeName} />
-          <InfoRow label="Company" value={info.companyName} />
-          <InfoRow label="Job Title" value={info.jobTitle} />
-          <InfoRow label="Salary" value={info.salary} />
-          <InfoRow label="Start Date" value={info.startDate} />
-          <InfoRow label="End Date" value={info.endDate} />
+          {Object.entries(fields).map(([key, value]) => (
+            <InfoRow key={key} label={toLabel(key)} value={value} />
+          ))}
 
-          {/* Show a message if no info was extracted */}
-          {!Object.values(info).some(v => v) && (
+          {/* Show a message if no fields were extracted */}
+          {Object.keys(fields).length === 0 && (
             <p style={{ color: '#94a3b8', fontSize: '14px', textAlign: 'center', padding: '16px' }}>
               No key information could be extracted from this document.
             </p>

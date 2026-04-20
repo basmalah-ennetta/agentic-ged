@@ -78,7 +78,7 @@ Key information already extracted:
 {info_section}
 
 Full contract text (for context):
-{text[:3000]}
+{text[:1000]}
 
 Write a clear 2-3 paragraph summary."""
 

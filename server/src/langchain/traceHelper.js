@@ -15,16 +15,11 @@ function createTracer(tools, documentId, agentName, fileName) {
 
   async function log(action, { tool, data, durationMs } = {}) {
     try {
-      await traceTool.invoke({
-        documentId,
-        fileName,
-        agent:      agentName,
-        action,
-        tool:       tool       || undefined,
-        data:       data       ? JSON.stringify(data) : undefined,
-        durationMs: durationMs || undefined,
-        success:    true,
-      });
+      const params = { documentId, fileName, agent: agentName, action, success: true };
+      if (tool)       params.tool       = tool;
+      if (data)       params.data       = JSON.stringify(data);
+      if (durationMs) params.durationMs = durationMs;
+      await traceTool.invoke(params);
     } catch (e) {
       console.error(`[Tracer] Failed to log "${action}":`, e.message);
     }
@@ -32,16 +27,14 @@ function createTracer(tools, documentId, agentName, fileName) {
 
   async function error(action, err, { tool, data } = {}) {
     try {
-      await traceTool.invoke({
-        documentId,
-        fileName,
-        agent:   agentName,
-        action,
-        tool:    tool || undefined,
-        data:    data ? JSON.stringify(data) : undefined,
+      const params = {
+        documentId, fileName, agent: agentName, action,
         success: false,
         error:   err.message || String(err),
-      });
+      };
+      if (tool) params.tool = tool;
+      if (data) params.data = JSON.stringify(data);
+      await traceTool.invoke(params);
     } catch (e) {
       console.error(`[Tracer] Failed to log error "${action}":`, e.message);
     }

@@ -27,12 +27,18 @@ class SummaryAgent {
       updates: JSON.stringify({ status: 'summarizing' }),
     });
 
-    const raw = await this.summarize.invoke({
-      text:          state.extractedText,
-      contractId:    state.contractId,
-      documentType:  state.documentType,
-      extractedInfo: JSON.stringify(state.extractedFields || {}),
-    });
+    let raw;
+    try {
+      raw = await this.summarize.invoke({
+        text:          state.extractedText,
+        contractId:    state.contractId,
+        documentType:  state.documentType,
+        extractedInfo: JSON.stringify(state.extractedFields || {}),
+      });
+    } catch (err) {
+      await tracer.error('summary_failed', err, { tool: 'summarize' });
+      throw err;
+    }
 
     const result  = this._parse(raw);
     const summary = result.summary || result;

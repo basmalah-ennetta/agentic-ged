@@ -44,10 +44,17 @@ class StructuringAgent {
       updates: JSON.stringify({ status: 'classifying' }),
     });
 
-    const raw          = await this.classify.invoke({
-      text: state.extractedText,
-      contractId: state.contractId,
-    });
+    let raw;
+    try {
+      raw = await this.classify.invoke({
+        text: state.extractedText,
+        contractId: state.contractId,
+      });
+    } catch (err) {
+      await tracer.error('classification_failed', err, { tool: 'classify' });
+      throw err;
+    }
+
     const result       = this._parse(raw);
     const documentType = result.document_type || 'other';
 
@@ -80,11 +87,18 @@ class StructuringAgent {
       updates: JSON.stringify({ status: 'extracting' }),
     });
 
-    const raw        = await this.extract.invoke({
-      text: state.extractedText,
-      contractId: state.contractId,
-      documentType,
-    });
+    let raw;
+    try {
+      raw = await this.extract.invoke({
+        text: state.extractedText,
+        contractId: state.contractId,
+        documentType,
+      });
+    } catch (err) {
+      await tracer.error('extraction_failed', err, { tool: 'extract' });
+      throw err;
+    }
+
     const result     = this._parse(raw);
     const rawFields  = result.extracted_info || result;
 

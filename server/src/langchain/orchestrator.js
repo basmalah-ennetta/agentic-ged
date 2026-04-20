@@ -12,6 +12,8 @@ const { getSupportedTypes, getChainName } = require('./router');
 async function resolveTools() {
   const tools = await getMcpTools();
 
+  console.log('[Debug] Available tool names:', tools.map(t => t.name));
+  
   return {
     ocr:       getToolByName('ocr',       tools),
     classify:  getToolByName('classify',  tools),
@@ -48,10 +50,7 @@ async function runContractPipeline(initialState) {
     const Trace = require('../models/traceModel');
     await Trace.findOneAndUpdate(
       { documentId: initialState.contractId },
-      {
-        outcome:        'completed',
-        totalDurationMs: Date.now() - pipelineStart,
-      }
+      { $set: { outcome: 'completed', totalDurationMs: Date.now() - pipelineStart } }
     );
   } catch (e) {
     console.error('[Orchestrator] Failed to finalize trace:', e.message);

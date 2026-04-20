@@ -62,7 +62,7 @@ const lcUploadContract = async (req, res) => {
         character_count: finalState.characterCount,
         document_type: finalState.documentType,
         confidence: finalState.confidence,
-        fields_extracted: Object.keys(finalState.extractedInfo || {}).length,
+        fields_extracted: Object.keys(finalState.extractedFields || {}).length,
         summary_length: (finalState.summary || '').length,
       },
     });
@@ -75,15 +75,14 @@ const lcUploadContract = async (req, res) => {
       const Trace = require('../models/traceModel');
       await Trace.findOneAndUpdate(
         { documentId: contractId },
-        { outcome: 'failed' }
+        { $set: { outcome: 'failed' } }
       );
     } catch {}
 
-    // Mark the contract as failed in MongoDB if we have an ID
+    // Mark the document as failed in MongoDB if we have an ID
     if (contractId) {
-      await Contract.findByIdAndUpdate(contractId, {
-        status: 'failed',
-        errorMessage: error.message,
+      await Document.findByIdAndUpdate(contractId, {
+        $set: { status: 'failed', errorMessage: error.message },
       }).catch(() => {}); // ignore secondary errors
     }
 
