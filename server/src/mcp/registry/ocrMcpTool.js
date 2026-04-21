@@ -37,17 +37,31 @@ const ocrMcpTool = {
       contentType: mimeType,
     });
 
-    const response = await axios.post(`${agentUrl}/process`, formData, {
-      headers: formData.getHeaders(),
-      timeout: 120000,
-    });
+    let response;
+    try {
+      response = await axios.post(`${agentUrl}/process`, formData, {
+        headers: formData.getHeaders(),
+        timeout: 120000,
+      });
+    } catch (err) {
+      if (err.response) {
+        // Python agent returned a non-2xx status — surface its detail
+        const detail = err.response.data?.detail || JSON.stringify(err.response.data);
+        throw new Error(`OCR agent error ${err.response.status}: ${detail}`);
+      }
+      // Network-level failure (ECONNREFUSED, timeout, etc.)
+      // axios 1.x sets err.code but leaves err.message empty on stream+ECONNREFUSED
+      const reason = err.message || err.code || 'unknown network error';
+      throw new Error(
+        `OCR agent unreachable at ${agentUrl} (${reason}). ` +
+        `Start it with: cd agents/ocr_agent && python main.py`
+      );
+    }
 
     if (!response.data.success) {
       throw new Error(`OCR failed: ${JSON.stringify(response.data)}`);
     }
 
-    // MCP tools return a content array with type + text
-    // This is the standard MCP response format
     return {
       extracted_text: response.data.extracted_text,
       character_count: response.data.character_count,

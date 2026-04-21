@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const a = require\\('axios'\\); console.log\\('axios:', require\\('./node_modules/axios/package.json'\\).version\\)\")"
     ]
   }
 }

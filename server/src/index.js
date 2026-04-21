@@ -8,6 +8,7 @@ const { verifyTools } = require('./langchain/orchestrator');
 const { initMcpServer } = require('./mcp/mcpServer');
 
 const contractRoutes = require('./routes/contractRoutes');
+const batchRoutes = require('./routes/batchRoutes');
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── API ROUTES ─────────────────────────────────────────────────────────────
 app.use('/api/contracts', contractRoutes);
+app.use('/api/batch', batchRoutes);
 
 // ── MCP ROUTES ─────────────────────────────────────────────────────────────
 // initMcpServer registers GET /mcp/sse and POST /mcp/messages
