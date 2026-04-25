@@ -46,6 +46,13 @@ Start-Process powershell -ArgumentList `
 
 Start-Sleep -Seconds 2
 
+Write-Host "🐍 Starting Indexation Agent (port 8005)..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList `
+  "cd '$PSScriptRoot\agents'; .\indexing_agent\venv\Scripts\activate; cd indexing_agent; python main.py" `
+  -WindowStyle Normal
+
+Start-Sleep -Seconds 2
+
 # ── Start Node.js Server ───────────────────────────────────
 Write-Host "⚙️  Starting Node.js Server (port 5000)..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList `

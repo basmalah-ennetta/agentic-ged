@@ -21,6 +21,7 @@ async function resolveTools() {
     summarize: getToolByName('summarize', tools),
     storage:   getToolByName('storage',   tools),
     trace:     getToolByName('trace',     tools),
+    index:     getToolByName('index',     tools),
   };
 }
 

@@ -27,6 +27,7 @@ class AgentCoordinator {
     this.validationAgent = new ValidationAgent({
       storage: tools.storage,
       trace:   tools.trace,
+      index:   tools.index,
     });
   }
 

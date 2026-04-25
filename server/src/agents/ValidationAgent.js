@@ -5,6 +5,7 @@ class ValidationAgent {
   constructor(tools) {
     this.storage = tools.storage;
     this.trace   = tools.trace;
+    this.index   = tools.index;   // ADD
     this.name    = 'ValidationAgent';
   }
 
@@ -51,13 +52,57 @@ class ValidationAgent {
     await this.storage.invoke({
       contractId: state.contractId,
       updates: JSON.stringify({
-        status: 'completed',
+        status:            'completed',
         validationWarnings: warnings,
-        validationPassed:   passed,
+        validationPassed:  passed,
       }),
     });
 
+    // Auto-indexation — runs after validation regardless of pass/fail
+    await this._runIndexing(state, tracer);
+
     return { ...state, validationWarnings: warnings, validationPassed: passed };
+  }
+
+  async _runIndexing(state, tracer) {
+    if (!this.index) {
+      console.log(`[${this.name}] Index tool not available — skipping indexation`);
+      return;
+    }
+
+    try {
+      console.log(`[${this.name}] Running auto-indexation...`);
+
+      await tracer.log('indexing_started', {
+        data: { documentType: state.documentType }
+      });
+
+      const result = await this.index.invoke({
+        documentId:      state.contractId,
+        fileName:        state.fileName || 'unknown',
+        documentType:    state.documentType || 'other',
+        text:            state.extractedText || '',
+        extractedFields: JSON.stringify(state.extractedFields || {}),
+      });
+
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+
+      await tracer.log('indexing_complete', {
+        data: {
+          keywordCount: parsed.keywordCount,
+          tagCount:     parsed.tagCount,
+          entityCount:  parsed.entityCount,
+        }
+      });
+
+      console.log(`[${this.name}] Indexation complete — ${parsed.keywordCount} keywords`);
+
+    } catch (err) {
+      // Indexation failure must NOT fail the pipeline
+      // Document is already completed — indexation is additive
+      console.error(`[${this.name}] Indexation failed (non-fatal):`, err.message);
+      await tracer.error('indexing_failed', err);
+    }
   }
 
   _checkRequiredFields(documentType, extractedFields) {
